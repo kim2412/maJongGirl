@@ -7,7 +7,8 @@ const STORAGE_KEYS = {
     SALARY_RECORDS: 'tennis_salary_records', // 정산 기록 배열
     CANCEL_MAKEUP_LESSONS: 'tennis_cancel_makeup_lessons', // 취소/보강 레슨 기록
     SAME_DAY_CANCELS: 'tennis_same_day_cancels', // 당일취소 기록
-    IS_LOGGED_IN: 'tennis_is_logged_in' // 로그인 상태
+    IS_LOGGED_IN: 'tennis_is_logged_in', // 로그인 상태 (세션용)
+    PASSWORD_ENTERED: 'tennis_password_entered' // 비밀번호 입력 이력 (기기별 저장)
 };
 
 // 비밀번호
@@ -204,12 +205,16 @@ function closeInAppWarning() {
 
 // ==================== 로그인 관리 ====================
 function checkLoginStatus() {
-    const isLoggedIn = localStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true';
+    // 비밀번호 입력 이력이 있는지 확인 (기기별로 저장됨)
+    const passwordEntered = localStorage.getItem(STORAGE_KEYS.PASSWORD_ENTERED) === 'true';
     
-    if (isLoggedIn) {
+    if (passwordEntered) {
+        // 이전에 비밀번호를 입력한 이력이 있으면 바로 메인 화면 표시
+        // 다른 기기에서는 이 값이 없어서 비밀번호를 물어봄
         showMainContent();
         loadAllData();
     } else {
+        // 비밀번호 입력 이력이 없으면 로그인 화면 표시
         showLoginScreen();
         // 로그인 화면에 포커스
         setTimeout(() => {
@@ -251,7 +256,11 @@ function checkPassword() {
     
     if (enteredPassword === PASSWORD) {
         // 로그인 성공
+        // 비밀번호 입력 이력을 저장 (이 기기에서는 다시 비밀번호를 물어보지 않음)
+        localStorage.setItem(STORAGE_KEYS.PASSWORD_ENTERED, 'true');
+        // 세션용 로그인 상태도 저장 (필요시 사용)
         localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true');
+        
         passwordError.textContent = '';
         passwordInput.value = '';
         showMainContent();
