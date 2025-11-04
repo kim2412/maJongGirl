@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>테니스 레슨 정산 시스템</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎾 테니스 레슨 정산 시스템</h1>
+            <p class="subtitle">레슨 정산을 쉽고 빠르게 관리하세요</p>
+        </header>
+
+        <!-- 레슨비 설정 섹션 -->
+        <section class="card">
+            <h2>💰 레슨비 설정</h2>
+            <div class="form-group">
+                <label for="lessonPrice">회당 레슨비 (원)</label>
+                <input type="number" id="lessonPrice" placeholder="예: 20000" min="0">
+            </div>
+            <button class="btn btn-primary" onclick="saveLessonPrice()">저장</button>
+            <div id="priceDisplay" class="info-display"></div>
+        </section>
+
+        <!-- 회원 관리 섹션 -->
+        <section class="card">
+            <h2>👥 회원 관리</h2>
+            <div class="form-group">
+                <label for="memberName">회원 이름</label>
+                <input type="text" id="memberName" placeholder="회원 이름을 입력하세요">
+            </div>
+            <div class="form-group">
+                <label for="startDate">시작 일자</label>
+                <input type="date" id="startDate">
+            </div>
+            <div class="form-group">
+                <label for="endDate">종료 일자</label>
+                <input type="date" id="endDate">
+            </div>
+            <button class="btn btn-primary" onclick="addMember()">회원 추가</button>
+            
+            <div id="membersList" class="members-list"></div>
+        </section>
+
+        <!-- 쿠폰 관리 섹션 -->
+        <section class="card">
+            <h2>🎫 쿠폰 관리</h2>
+            <div class="form-group">
+                <label for="couponDate">쿠폰 사용 일자</label>
+                <input type="date" id="couponDate">
+            </div>
+            <div class="form-group">
+                <label for="couponCount">쿠폰 개수 (회)</label>
+                <input type="number" id="couponCount" placeholder="예: 2" min="0">
+            </div>
+            <div class="form-group">
+                <label for="couponPrice">쿠폰 금액 (원)</label>
+                <input type="number" id="couponPrice" placeholder="예: 15000" min="0">
+            </div>
+            <button class="btn btn-primary" onclick="addCoupon()">쿠폰 추가</button>
+            
+            <div id="couponsList" class="coupons-list"></div>
+        </section>
+
+        <!-- 정산 결과 섹션 -->
+        <section class="card summary-card">
+            <h2>📊 정산 결과</h2>
+            <div id="summaryResults" class="summary-results"></div>
+            <button class="btn btn-success" onclick="calculateTotal()">정산 계산</button>
+        </section>
+
+        <!-- 데이터 관리 -->
+        <section class="card">
+            <h2>💾 데이터 관리</h2>
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="clearAllData()">전체 삭제</button>
+                <button class="btn btn-secondary" onclick="exportData()">데이터 내보내기</button>
+                <button class="btn btn-secondary" onclick="importData()">데이터 가져오기</button>
+            </div>
+            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
