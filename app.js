@@ -18,6 +18,8 @@ const PASSWORD = '01089707825';
 document.addEventListener('DOMContentLoaded', function() {
     checkInAppBrowser();
     checkLoginStatus();
+    // 레슨비 입력 필드에 콤마 포맷팅 설정
+    setupLessonPriceInput();
 });
 
 // ==================== 인앱 브라우저 감지 ====================
@@ -306,15 +308,23 @@ function switchTab(tabName) {
     }
     
     // 선택한 탭 콘텐츠 활성화
-    document.getElementById(tabName + '-tab').classList.add('active');
+    const tabContent = document.getElementById(tabName + '-tab');
+    if (tabContent) {
+        tabContent.classList.add('active');
+    }
     
     // 탭별 데이터 로드
     if (tabName === 'members') {
         loadMembers();
         loadMemberSelect();
     } else if (tabName === 'salary') {
-        loadMemberSelect();
         loadSalaryRecords();
+    } else if (tabName === 'admin') {
+        loadLessonPrice();
+        // 관리자 설정 탭으로 전환 시 콤마 포맷팅 재설정
+        setTimeout(() => {
+            setupLessonPriceInput();
+        }, 100);
     } else if (tabName === 'lessons') {
         loadMemberSelect();
         loadCancelMakeupMemberSelect();
@@ -328,16 +338,71 @@ function switchTab(tabName) {
 
 // ==================== 레슨비 설정 ====================
 function saveLessonPrice() {
-    const price = document.getElementById('lessonPrice').value;
-    if (!price || price <= 0) {
+    const priceInput = document.getElementById('lessonPrice');
+    // 콤마 제거 후 숫자만 추출
+    const price = priceInput.value.replace(/,/g, '');
+    
+    if (!price || parseInt(price) <= 0) {
         alert('올바른 레슨비를 입력해주세요.');
         return;
     }
     
     localStorage.setItem(STORAGE_KEYS.LESSON_PRICE, price);
     loadLessonPrice();
-    document.getElementById('lessonPrice').value = '';
+    priceInput.value = '';
     showNotification('레슨비가 저장되었습니다.');
+}
+
+// 숫자에 콤마 포맷팅
+function formatNumberWithCommas(value) {
+    if (!value) return '';
+    // 숫자가 아닌 문자 제거 (콤마 포함)
+    const number = value.toString().replace(/[^\d]/g, '');
+    // 콤마 추가
+    return number.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+// 레슨비 입력 필드에 콤마 자동 포맷팅 적용
+function setupLessonPriceInput() {
+    const priceInput = document.getElementById('lessonPrice');
+    if (!priceInput) return;
+    
+    // 기존 이벤트 리스너 제거 (중복 방지)
+    const newInput = priceInput.cloneNode(true);
+    priceInput.parentNode.replaceChild(newInput, priceInput);
+    
+    // 새로운 이벤트 리스너 추가
+    const input = document.getElementById('lessonPrice');
+    
+    // 입력 시 콤마 자동 추가
+    input.addEventListener('input', function(e) {
+        const cursorPosition = this.selectionStart;
+        const valueBefore = this.value;
+        const formatted = formatNumberWithCommas(this.value);
+        
+        // 포맷팅 후에도 커서 위치 유지
+        this.value = formatted;
+        const cursorOffset = formatted.length - valueBefore.length;
+        const newPosition = Math.max(0, cursorPosition + cursorOffset);
+        this.setSelectionRange(newPosition, newPosition);
+    });
+    
+    // 포커스 아웃 시도 포맷팅
+    input.addEventListener('blur', function(e) {
+        if (this.value) {
+            this.value = formatNumberWithCommas(this.value);
+        }
+    });
+}
+
+function validatePrice(input) {
+    // 콤마 제거 후 숫자 검증
+    const value = input.value.replace(/,/g, '');
+    if (value && (isNaN(value) || parseInt(value) < 0)) {
+        input.setCustomValidity('올바른 금액을 입력해주세요.');
+    } else {
+        input.setCustomValidity('');
+    }
 }
 
 function loadLessonPrice() {
@@ -1084,14 +1149,258 @@ function loadSalaryRecords() {
                     <span class="salary-record-amount">${record.totalAmount.toLocaleString()}원</span>
                 </div>
                 <div class="salary-record-details">
-                    <p><strong>총 횟수:</strong> ${record.totalTimes}회</p>
+                    <p><strong>총 횟수:</strong> ${record.totalTimes}타임</p>
                     <p><strong>기간:</strong> ${formatDate(record.startDate)} ~ ${formatDate(record.endDate)}</p>
                     ${record.note ? `<p><strong>특이사항:</strong> ${record.note}</p>` : ''}
                 </div>
             </div>
-            <button class="btn btn-secondary" onclick="editSalaryRecord(${record.id})">수정</button>
+            <div class="salary-record-actions">
+                <button class="btn btn-info" onclick="showSettlementDetail(${record.id})">상세보기</button>
+                <button class="btn btn-secondary" onclick="editSalaryRecord(${record.id})">수정</button>
+            </div>
         </div>
     `).join('');
+}
+
+// 정산 기록 상세보기
+function showSettlementDetail(id) {
+    const records = getSalaryRecords();
+    const record = records.find(r => r.id === id);
+    
+    if (!record) return;
+    
+    const popup = document.getElementById('settlementDetailPopup');
+    const contentContainer = document.getElementById('settlementDetailContent');
+    
+    if (!popup || !contentContainer) return;
+    
+    // 이미 열려있으면 닫기
+    if (popup.style.display === 'flex') {
+        closeSettlementDetail();
+        return;
+    }
+    
+    const lessonPrice = parseInt(localStorage.getItem(STORAGE_KEYS.LESSON_PRICE)) || 0;
+    const calendarData = record.calendarData || {};
+    
+    if (!calendarData || Object.keys(calendarData).length === 0) {
+        detailContainer.innerHTML = '<div class="empty-message">상세 정보가 없습니다. (이전 버전에서 저장된 기록입니다.)</div>';
+        detailContainer.style.display = 'block';
+        return;
+    }
+    
+    // 날짜별 데이터 정리
+    const dateEntries = Object.keys(calendarData)
+        .map(dateStr => {
+            const date = new Date(dateStr);
+            const data = calendarData[dateStr];
+            const morning = data.morning || 0;
+            const afternoon = data.afternoon || 0;
+            const totalTimes = morning + afternoon;
+            const dayAmount = totalTimes * lessonPrice;
+            
+            return {
+                dateStr,
+                date,
+                year: date.getFullYear(),
+                month: date.getMonth() + 1,
+                day: date.getDate(),
+                dayOfWeek: date.getDay(),
+                morning,
+                afternoon,
+                totalTimes,
+                dayAmount
+            };
+        })
+                  .filter(entry => entry.totalTimes > 0 && entry.dayOfWeek >= 1 && entry.dayOfWeek <= 5)
+          .sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr));
+    
+    const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+    const holidays = getHolidays(record.year);
+    
+    let html = '<div class="settlement-detail-content">';
+    
+    // 요약 통계
+    html += '<div class="detail-summary">';
+    html += '<h4>📊 요약 통계</h4>';
+    html += '<div class="detail-stats">';
+    
+    const totalDays = dateEntries.length;
+    const maxDayAmount = Math.max(...dateEntries.map(e => e.dayAmount), 0);
+    const avgDayAmount = dateEntries.reduce((sum, e) => sum + e.dayAmount, 0) / totalDays;
+    
+    html += `<div class="stat-card"><div class="stat-label">레슨한 날</div><div class="stat-value">${totalDays}일</div></div>`;
+    html += `<div class="stat-card"><div class="stat-label">일평균 금액</div><div class="stat-value">${Math.round(avgDayAmount).toLocaleString()}원</div></div>`;
+    html += `<div class="stat-card"><div class="stat-label">최고 일일 금액</div><div class="stat-value">${maxDayAmount.toLocaleString()}원</div></div>`;
+    
+    html += '</div></div>';
+    
+    // 날짜별 상세 표
+    html += '<div class="detail-table-section">';
+    html += '<h4>📅 날짜별 상세 내역</h4>';
+    html += '<div class="detail-table-wrapper">';
+    html += '<table class="detail-table">';
+    html += '<thead><tr>';
+    html += '<th>날짜</th>';
+    html += '<th>요일</th>';
+    html += '<th>오전</th>';
+    html += '<th>오후</th>';
+    html += '<th>합계</th>';
+    html += '<th>금액</th>';
+    html += '</tr></thead>';
+    html += '<tbody>';
+    
+    dateEntries.forEach(entry => {
+        const isHoliday = holidays[entry.dateStr];
+        const dayName = weekDays[entry.dayOfWeek];
+        const rowClass = entry.dayOfWeek === 0 || entry.dayOfWeek === 6 ? 'weekend-row' : '';
+        
+        html += `<tr class="${rowClass}">`;
+        html += `<td class="date-cell">${entry.month}/${entry.day}</td>`;
+        html += `<td class="day-cell">${dayName}${isHoliday ? '<br><small>' + isHoliday + '</small>' : ''}</td>`;
+                  html += `<td class="morning-cell">${entry.morning > 0 ? entry.morning : '-'}</td>`;
+          html += `<td class="afternoon-cell">${entry.afternoon > 0 ? entry.afternoon : '-'}</td>`;
+          html += `<td class="total-cell"><strong>${entry.totalTimes}</strong></td>`;
+        html += `<td class="amount-cell"><strong>${entry.dayAmount.toLocaleString()}원</strong></td>`;
+        html += `</tr>`;
+    });
+    
+    html += '</tbody></table>';
+    html += '</div></div>';
+    
+    // 통계 데이터 계산
+    const totalMorningTimes = dateEntries.reduce((sum, e) => sum + e.morning, 0);
+    const totalAfternoonTimes = dateEntries.reduce((sum, e) => sum + e.afternoon, 0);
+    const totalAllTimes = totalMorningTimes + totalAfternoonTimes;
+    
+    // 요일별 통계
+    const dayStats = {};
+    weekDays.forEach((day, idx) => {
+        dayStats[idx] = { name: day, count: 0, amount: 0, times: 0 };
+    });
+    dateEntries.forEach(entry => {
+        const dayIdx = entry.dayOfWeek;
+        dayStats[dayIdx].count++;
+        dayStats[dayIdx].amount += entry.dayAmount;
+        dayStats[dayIdx].times += entry.totalTimes;
+    });
+    
+    // 시각화 차트 섹션
+    html += '<div class="detail-chart-section">';
+    
+    // 차트 그리드 컨테이너
+    html += '<div class="charts-grid">';
+    
+    // 1. 오전/오후 비율 도넛 차트
+    html += '<div class="chart-card">';
+    html += '<h5>🕐 오전/오후 비율</h5>';
+    const morningPercent = totalAllTimes > 0 ? Math.round((totalMorningTimes / totalAllTimes) * 100) : 0;
+    const afternoonPercent = totalAllTimes > 0 ? Math.round((totalAfternoonTimes / totalAllTimes) * 100) : 0;
+    
+    html += `<div class="donut-chart-wrapper">`;
+    // 반응형으로 도넛 차트 크기 조절
+    const responsiveDonutSize = window.innerWidth <= 768 ? 100 : 120;
+    const responsiveDonutStroke = window.innerWidth <= 768 ? 10 : 12;
+    const responsiveDonutRadius = (responsiveDonutSize - responsiveDonutStroke) / 2;
+    const responsiveDonutCircumference = 2 * Math.PI * responsiveDonutRadius;
+    const responsiveMorningOffset = responsiveDonutCircumference - (morningPercent / 100) * responsiveDonutCircumference;
+    const responsiveAfternoonOffset = responsiveDonutCircumference - (afternoonPercent / 100) * responsiveDonutCircumference;
+    
+    html += `<svg width="${responsiveDonutSize}" height="${responsiveDonutSize}" class="donut-chart" viewBox="0 0 ${responsiveDonutSize} ${responsiveDonutSize}" preserveAspectRatio="xMidYMid meet">`;
+    html += `<circle cx="${responsiveDonutSize/2}" cy="${responsiveDonutSize/2}" r="${responsiveDonutRadius}" fill="none" stroke="#e9ecef" stroke-width="${responsiveDonutStroke}"></circle>`;
+    if (totalAllTimes > 0) {
+        html += `<circle cx="${responsiveDonutSize/2}" cy="${responsiveDonutSize/2}" r="${responsiveDonutRadius}" fill="none" stroke="#0066cc" stroke-width="${responsiveDonutStroke}" stroke-dasharray="${responsiveDonutCircumference}" stroke-dashoffset="${responsiveMorningOffset}" transform="rotate(-90 ${responsiveDonutSize/2} ${responsiveDonutSize/2})" class="donut-segment"></circle>`;
+        html += `<circle cx="${responsiveDonutSize/2}" cy="${responsiveDonutSize/2}" r="${responsiveDonutRadius}" fill="none" stroke="#ff9900" stroke-width="${responsiveDonutStroke}" stroke-dasharray="${responsiveDonutCircumference}" stroke-dashoffset="${responsiveAfternoonOffset}" transform="rotate(-90 ${responsiveDonutSize/2} ${responsiveDonutSize/2})" style="stroke-dashoffset: ${responsiveMorningOffset - (afternoonPercent / 100) * responsiveDonutCircumference};" class="donut-segment"></circle>`;
+    }
+    html += `<text x="${responsiveDonutSize/2}" y="${responsiveDonutSize/2 + 5}" text-anchor="middle" class="donut-center-text">${totalAllTimes}</text>`;
+    html += `</svg>`;
+    html += `<div class="donut-legend">`;
+    html += `<div class="legend-item"><span class="legend-color" style="background: #0066cc;"></span> 오전 ${totalMorningTimes} (${morningPercent}%)</div>`;
+    html += `<div class="legend-item"><span class="legend-color" style="background: #ff9900;"></span> 오후 ${totalAfternoonTimes} (${afternoonPercent}%)</div>`;
+    html += `</div>`;
+    html += `</div>`;
+    html += '</div>';
+    
+    // 2. 요일별 분포 파이 차트 (타임 기준)
+    html += '<div class="chart-card">';
+    html += '<h5>📅 요일별 레슨 분포</h5>';
+    const workDays = [1, 2, 3, 4, 5]; // 월~금
+    const dayColors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#00f2fe'];
+    let dayTotal = 0;
+    workDays.forEach((dayIdx, idx) => {
+        dayTotal += dayStats[dayIdx] ? dayStats[dayIdx].times : 0;
+    });
+    
+    html += `<div class="pie-chart-wrapper">`;
+    // 반응형으로 파이 차트 크기 조절
+    const pieSize = window.innerWidth <= 768 ? 180 : 200;
+    const pieRadius = window.innerWidth <= 768 ? 70 : 80;
+    let currentAngle = -90;
+    
+    html += `<svg width="${pieSize}" height="${pieSize}" class="pie-chart" viewBox="0 0 ${pieSize} ${pieSize}" preserveAspectRatio="xMidYMid meet">`;
+    workDays.forEach((dayIdx, idx) => {
+        const dayData = dayStats[dayIdx];
+        if (dayData && dayData.times > 0 && dayTotal > 0) {
+            const percent = (dayData.times / dayTotal) * 100;
+            const angle = (percent / 100) * 360;
+            const largeArc = angle > 180 ? 1 : 0;
+            const startAngle = (currentAngle * Math.PI) / 180;
+            const endAngle = ((currentAngle + angle) * Math.PI) / 180;
+            const x1 = pieSize/2 + pieRadius * Math.cos(startAngle);
+            const y1 = pieSize/2 + pieRadius * Math.sin(startAngle);
+            const x2 = pieSize/2 + pieRadius * Math.cos(endAngle);
+            const y2 = pieSize/2 + pieRadius * Math.sin(endAngle);
+            
+            html += `<path d="M ${pieSize/2} ${pieSize/2} L ${x1} ${y1} A ${pieRadius} ${pieRadius} 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${dayColors[idx]}" stroke="white" stroke-width="3" class="pie-segment"></path>`;
+            currentAngle += angle;
+        }
+    });
+          html += `<text x="${pieSize/2}" y="${pieSize/2 + 5}" text-anchor="middle" class="pie-center-text" font-size="18" font-weight="700" fill="#2c3e50">${dayTotal}</text>`;
+      html += `</svg>`;
+      html += `<div class="pie-legend">`;
+      workDays.forEach((dayIdx, idx) => {
+          const dayData = dayStats[dayIdx];
+          if (dayData && dayData.times > 0 && dayTotal > 0) {
+              const percent = Math.round((dayData.times / dayTotal) * 100);
+              html += `<div class="legend-item"><span class="legend-color" style="background: ${dayColors[idx]};"></span> ${dayData.name} ${dayData.times} (${percent}%)</div>`;
+          }
+      });
+    html += `</div>`;
+    html += `</div>`;
+          html += '</div>';
+      
+      html += '</div>'; // charts-grid 닫기
+    html += '</div>'; // detail-chart-section 닫기
+    html += '</div>';
+    
+    contentContainer.innerHTML = html;
+    
+    // 팝업 헤더에 년도/월 정보 추가
+    const popupTitle = document.getElementById('settlementPopupTitle');
+    if (popupTitle) {
+        popupTitle.textContent = `📊 ${record.year}년 ${record.month}월 정산 상세 내역`;
+    }
+    
+    popup.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSettlementDetail() {
+    const popup = document.getElementById('settlementDetailPopup');
+    if (popup) {
+        popup.style.display = 'none';
+        document.body.style.overflow = 'auto';
+        const contentContainer = document.getElementById('settlementDetailContent');
+        if (contentContainer) {
+            contentContainer.innerHTML = '';
+        }
+    }
+}
+
+function closeSettlementDetailOnBackdrop(event) {
+    if (event.target.id === 'settlementDetailPopup') {
+        closeSettlementDetail();
+    }
 }
 
 function editSalaryRecord(id) {
@@ -1101,18 +1410,108 @@ function editSalaryRecord(id) {
     if (!record) return;
     
     // 폼에 데이터 입력
-    document.getElementById('settlementMonth').value = `${record.year}-${String(record.month).padStart(2, '0')}`;
     document.getElementById('settlementStartDate').value = record.startDate;
     document.getElementById('settlementEndDate').value = record.endDate;
-    document.getElementById('settlementNote').value = record.note || '';
     
-    // 정산 재계산
-    calculateMonthlySalary();
+    // 달력 데이터 복원 (있는 경우)
+    if (record.calendarData) {
+        calendarData = JSON.parse(JSON.stringify(record.calendarData));
+    } else {
+        calendarData = {};
+    }
+    
+    // 달력 생성 및 데이터 복원 (데이터 보존 모드)
+    generateCalendar(true);
+    
+    // 저장 버튼을 "수정 저장"으로 변경하기 위해 ID 저장
+    const saveBtn = document.querySelector('#calendarSection .btn-success');
+    if (saveBtn) {
+        saveBtn.setAttribute('data-edit-id', id);
+        saveBtn.onclick = function() {
+            updateManualSettlement(id);
+        };
+    }
     
     // 월급정산 탭으로 이동
     switchTab('salary');
     
     showNotification(`${record.year}년 ${record.month}월 정산 기록을 수정 모드로 불러왔습니다. 수정 후 저장해주세요.`);
+}
+
+function updateManualSettlement(id) {
+    const startDate = document.getElementById('settlementStartDate').value;
+    const endDate = document.getElementById('settlementEndDate').value;
+    const lessonPrice = parseInt(localStorage.getItem(STORAGE_KEYS.LESSON_PRICE)) || 0;
+    
+    if (!startDate || !endDate) {
+        alert('시작 일자와 종료 일자를 모두 선택해주세요.');
+        return;
+    }
+    
+    if (lessonPrice === 0) {
+        alert('관리자 설정에서 1타임당 레슨비를 먼저 설정해주세요.');
+        return;
+    }
+    
+    // 총 레슨 횟수 계산
+    let totalTimes = 0;
+    Object.keys(calendarData).forEach(dateStr => {
+        const data = calendarData[dateStr];
+        totalTimes += (data.morning || 0) + (data.afternoon || 0);
+    });
+    
+    if (totalTimes === 0) {
+        alert('최소 1타임 이상의 레슨을 입력해주세요.');
+        return;
+    }
+    
+    // 총 금액 계산
+    const totalAmount = totalTimes * lessonPrice;
+    const deductionAmount = Math.floor(totalAmount * 0.033);
+    const finalAmount = totalAmount - deductionAmount;
+    
+    // 날짜 정보
+    const startDateObj = new Date(startDate);
+    const year = startDateObj.getFullYear();
+    const month = startDateObj.getMonth() + 1;
+    
+    // 저장
+    const salaryRecords = getSalaryRecords();
+    const recordIndex = salaryRecords.findIndex(r => r.id === id);
+    
+    if (recordIndex >= 0) {
+        salaryRecords[recordIndex] = {
+            ...salaryRecords[recordIndex],
+            startDate: startDate,
+            endDate: endDate,
+            totalAmount: finalAmount,
+            totalTimes: totalTimes,
+            calendarData: JSON.parse(JSON.stringify(calendarData)),
+            updatedAt: new Date().toISOString()
+        };
+        
+        saveSalaryRecords(salaryRecords);
+        loadSalaryRecords();
+        
+        showNotification(`${year}년 ${month}월 정산 기록이 수정되었습니다.`);
+        
+        // 입력 초기화
+        calendarData = {};
+        document.getElementById('calendarContainer').innerHTML = '';
+        document.getElementById('settlementSummary').innerHTML = '';
+        document.getElementById('calendarSection').style.display = 'none';
+        document.getElementById('settlementStartDate').value = '';
+        document.getElementById('settlementEndDate').value = '';
+        
+        // 버튼 원래대로 복원
+        const saveBtn = document.querySelector('#calendarSection .btn-success');
+        if (saveBtn) {
+            saveBtn.removeAttribute('data-edit-id');
+            saveBtn.onclick = function() {
+                saveManualSettlement();
+            };
+        }
+    }
 }
 
 // ==================== 레슨 기록 조회 ====================
@@ -1821,6 +2220,400 @@ function validatePrice(input) {
 }
 
 // CSS 애니메이션 추가 (알림용)
+// ==================== 달력 생성 및 수동 입력 계산 ====================
+let calendarData = {}; // 날짜별 오전/오후 레슨 횟수 저장
+
+// 공휴일 데이터 반환 함수
+function getHolidays(year) {
+    const holidays = {};
+    
+    // 고정 공휴일
+    holidays[`${year}-01-01`] = '신정';
+    holidays[`${year}-03-01`] = '삼일절';
+    holidays[`${year}-05-05`] = '어린이날';
+    holidays[`${year}-06-06`] = '현충일';
+    holidays[`${year}-08-15`] = '광복절';
+    holidays[`${year}-10-03`] = '개천절';
+    holidays[`${year}-10-09`] = '한글날';
+    holidays[`${year}-12-25`] = '크리스마스';
+    
+    // 설날 계산 (음력 기준이지만 대략적인 날짜)
+    // 2025년 설날: 1월 29일 (전날, 당일, 다음날)
+    if (year === 2025) {
+        holidays[`${year}-01-28`] = '설날연휴';
+        holidays[`${year}-01-29`] = '설날';
+        holidays[`${year}-01-30`] = '설날연휴';
+    } else if (year === 2024) {
+        holidays[`2024-02-09`] = '설날연휴';
+        holidays[`2024-02-10`] = '설날';
+        holidays[`2024-02-11`] = '설날연휴';
+    } else if (year === 2026) {
+        holidays[`2026-02-16`] = '설날연휴';
+        holidays[`2026-02-17`] = '설날';
+        holidays[`2026-02-18`] = '설날연휴';
+    }
+    
+    // 추석 계산
+    // 2025년 추석: 10월 6일 (전날, 당일, 다음날)
+    if (year === 2025) {
+        holidays[`${year}-10-05`] = '추석연휴';
+        holidays[`${year}-10-06`] = '추석';
+        holidays[`${year}-10-07`] = '추석연휴';
+    } else if (year === 2024) {
+        holidays[`2024-09-16`] = '추석연휴';
+        holidays[`2024-09-17`] = '추석';
+        holidays[`2024-09-18`] = '추석연휴';
+    } else if (year === 2026) {
+        holidays[`2026-09-24`] = '추석연휴';
+        holidays[`2026-09-25`] = '추석';
+        holidays[`2026-09-26`] = '추석연휴';
+    }
+    
+    // 부처님오신날 (음력 기준)
+    // 2025년: 5월 5일
+    if (year === 2025) {
+        holidays[`${year}-05-05`] = '어린이날/부처님오신날';
+    }
+    
+    return holidays;
+}
+
+function generateCalendar(preserveData = false) {
+    const startDate = document.getElementById('settlementStartDate').value;
+    const endDate = document.getElementById('settlementEndDate').value;
+    
+    // 종료일 변경 시에는 알림 없이 리턴 (달력 생성 버튼을 눌렀을 때만 검증)
+    if (preserveData && (!startDate || !endDate)) {
+        return;
+    }
+    
+    if (!startDate || !endDate) {
+        alert('시작 일자와 종료 일자를 모두 선택해주세요.');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        alert('시작 일자가 종료 일자보다 늦을 수 없습니다.');
+        return;
+    }
+    
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
+    const container = document.getElementById('calendarContainer');
+    const calendarSection = document.getElementById('calendarSection');
+    
+    if (!container || !calendarSection) return;
+    
+    // 날짜 목록 생성 (시작일부터 종료일까지)
+    const dates = [];
+    const current = new Date(start);
+    while (current <= end) {
+        dates.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+    }
+    
+    // 요일 레이블
+    const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+    
+    // 공휴일 데이터 (한국의 주요 공휴일)
+    const holidays = getHolidays(dates[0].getFullYear());
+    
+    // 데이터 보존 모드가 아니면 초기화
+    if (!preserveData) {
+        // 현재 범위에 해당하는 날짜만 유지하고 나머지는 제거
+        const dateStrSet = new Set();
+        dates.forEach(date => {
+            dateStrSet.add(date.toISOString().split('T')[0]);
+        });
+        
+        // 기존 calendarData가 있으면 범위에 맞는 데이터만 유지
+        if (calendarData && Object.keys(calendarData).length > 0) {
+            const newCalendarData = {};
+            dateStrSet.forEach(dateStr => {
+                if (calendarData[dateStr]) {
+                    newCalendarData[dateStr] = calendarData[dateStr];
+                }
+            });
+            calendarData = newCalendarData;
+        } else {
+            calendarData = {};
+        }
+    } else {
+        // 데이터 보존 모드: 기존 데이터 유지
+        if (!calendarData || Object.keys(calendarData).length === 0) {
+            calendarData = {};
+        }
+    }
+    
+    // 주 단위로 날짜 그룹화 (월~금만 포함)
+    const weeks = [];
+    let currentWeek = [];
+    let isNewWeek = true; // 첫 번째 월~금 날짜를 만나면 새 주 시작
+    
+    dates.forEach((date, index) => {
+        const dayOfWeek = date.getDay();
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // 기존 데이터가 있으면 불러오기, 없으면 초기화
+        if (!calendarData[dateStr]) {
+            calendarData[dateStr] = { morning: 0, afternoon: 0 };
+        }
+        
+        // 월~금만 처리
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            // 새 주 시작 조건: 첫 번째 월~금이거나 월요일인 경우
+            if (isNewWeek || dayOfWeek === 1) {
+                // 이전 주가 있으면 저장
+                if (currentWeek.length > 0) {
+                    weeks.push([...currentWeek]);
+                }
+                currentWeek = [date];
+                isNewWeek = false;
+            } else {
+                // 현재 주에 추가
+                currentWeek.push(date);
+            }
+        }
+        
+        // 마지막 날이고 현재 주가 있으면 저장
+        if (index === dates.length - 1 && currentWeek.length > 0) {
+            weeks.push([...currentWeek]);
+        }
+    });
+    
+    // 달력 HTML 생성 (더 달력처럼 보이게)
+    let html = '<div class="calendar-table-wrapper">';
+    html += '<table class="calendar-table">';
+    html += '<thead><tr>';
+    
+    // 월~금 헤더 생성 (요일만 표시, 오전/오후는 셀 안에)
+    for (let i = 1; i <= 5; i++) {
+        html += `<th class="day-header">${weekDays[i]}</th>`;
+    }
+    html += '</tr></thead>';
+    html += '<tbody>';
+    
+    // 주별로 행 생성 (각 주를 하나의 행으로)
+    weeks.forEach((week, weekIndex) => {
+        // 주 구분선 추가
+        if (weekIndex > 0) {
+            html += '<tr class="week-separator"><td colspan="5"></td></tr>';
+        }
+        
+        html += '<tr class="week-row">';
+        
+        // 월~금 순서대로 입력 필드 생성 (5칸)
+        for (let dayIdx = 1; dayIdx <= 5; dayIdx++) {
+            // 해당 요일에 맞는 날짜 찾기
+            const dayDate = week.find(d => d.getDay() === dayIdx);
+            
+            if (dayDate) {
+                const dateStr = dayDate.toISOString().split('T')[0];
+                const dayNum = dayDate.getDate();
+                const month = dayDate.getMonth() + 1;
+                const isHoliday = holidays[dateStr];
+                const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+                const cellClass = isHoliday ? 'holiday-cell' : (isWeekend ? 'weekend-cell' : '');
+                
+                // 요일 셀 (날짜 + 오전/오후 입력)
+                html += `<td class="day-cell ${cellClass}" title="${month}/${dayNum}일 ${weekDays[dayDate.getDay()]}요일${isHoliday ? ' (' + isHoliday + ')' : ''}">`;
+                
+                // 날짜 표시 (더 달력처럼)
+                html += `<div class="day-date-label ${isHoliday ? 'holiday-text' : ''}">`;
+                html += `<span class="date-number">${dayNum}</span>`;
+                if (isHoliday) {
+                    html += `<span class="holiday-name">${isHoliday}</span>`;
+                }
+                html += `</div>`;
+                
+                // 오전/오후 입력 필드 컨테이너
+                const morningValue = calendarData[dateStr].morning > 0 ? calendarData[dateStr].morning : '';
+                const afternoonValue = calendarData[dateStr].afternoon > 0 ? calendarData[dateStr].afternoon : '';
+                
+                html += `<div class="input-pair">`;
+                html += `<div class="input-group">`;
+                html += `<div class="input-label">오전</div>`;
+                html += `<input type="number" class="lesson-input morning-input" data-date="${dateStr}" data-type="morning" value="${morningValue}" placeholder="0" min="0" onchange="updateCalendarData('${dateStr}', 'morning', this.value || 0)" oninput="calculateSettlement()" onblur="updateCalendarData('${dateStr}', 'morning', this.value || 0)">`;
+                html += `</div>`;
+                html += `<div class="input-group">`;
+                html += `<div class="input-label">오후</div>`;
+                html += `<input type="number" class="lesson-input afternoon-input" data-date="${dateStr}" data-type="afternoon" value="${afternoonValue}" placeholder="0" min="0" onchange="updateCalendarData('${dateStr}', 'afternoon', this.value || 0)" oninput="calculateSettlement()" onblur="updateCalendarData('${dateStr}', 'afternoon', this.value || 0)">`;
+                html += `</div>`;
+                html += `</div>`;
+                html += `</td>`;
+            } else {
+                // 해당 요일이 해당 주에 없는 경우 빈 셀 (달력처럼)
+                html += `<td class="day-cell empty-cell"></td>`;
+            }
+        }
+        
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    
+    container.innerHTML = html;
+    calendarSection.style.display = 'block';
+    
+    // 달력 생성 후 해당 위치로 스크롤 이동
+    setTimeout(() => {
+        calendarSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    
+    // 계산 실행
+    calculateSettlement();
+}
+
+function updateCalendarData(dateStr, type, value) {
+    if (!calendarData[dateStr]) {
+        calendarData[dateStr] = { morning: 0, afternoon: 0 };
+    }
+    const numValue = parseInt(value) || 0;
+    calendarData[dateStr][type] = numValue;
+    
+    // 입력 필드가 비어있으면 placeholder가 보이도록 value 제거
+    const input = document.querySelector(`input[data-date="${dateStr}"][data-type="${type}"]`);
+    if (input && numValue === 0) {
+        input.value = '';
+    }
+}
+
+function calculateSettlement() {
+    const lessonPrice = parseInt(localStorage.getItem(STORAGE_KEYS.LESSON_PRICE)) || 0;
+    
+    if (lessonPrice === 0) {
+        document.getElementById('settlementSummary').innerHTML = '<div class="summary-error">⚠️ 관리자 설정에서 1타임당 레슨비를 먼저 설정해주세요.</div>';
+        return;
+    }
+    
+    let totalMorning = 0;
+    let totalAfternoon = 0;
+    let totalTimes = 0;
+    
+    // 모든 입력 필드에서 현재 값을 직접 읽어옴 (placeholder가 있어도 실제 입력된 값만 계산)
+    document.querySelectorAll('.lesson-input').forEach(input => {
+        const value = parseInt(input.value) || 0;
+        const type = input.dataset.type;
+        const dateStr = input.dataset.date;
+        
+        // calendarData도 업데이트
+        if (!calendarData[dateStr]) {
+            calendarData[dateStr] = { morning: 0, afternoon: 0 };
+        }
+        calendarData[dateStr][type] = value;
+        
+        if (type === 'morning') {
+            totalMorning += value;
+        } else if (type === 'afternoon') {
+            totalAfternoon += value;
+        }
+        totalTimes += value;
+    });
+    
+    // 총 금액 계산
+    const totalAmount = totalTimes * lessonPrice;
+    
+    // 3.3% 소득공제 금액 계산
+    const deductionAmount = Math.floor(totalAmount * 0.033);
+    const finalAmount = totalAmount - deductionAmount;
+    
+    // 결과 표시
+    const summaryContainer = document.getElementById('settlementSummary');
+    if (!summaryContainer) return;
+    
+    let html = '<div class="settlement-summary-content">';
+    html += '<h3>💰 정산 결과</h3>';
+    html += '<div class="summary-grid">';
+    html += `<div class="summary-item"><span class="summary-label">총 오전 레슨</span><span class="summary-value">${totalMorning}타임</span></div>`;
+    html += `<div class="summary-item"><span class="summary-label">총 오후 레슨</span><span class="summary-value">${totalAfternoon}타임</span></div>`;
+    html += `<div class="summary-item highlight"><span class="summary-label">총 레슨 횟수</span><span class="summary-value">${totalTimes}타임</span></div>`;
+    html += `<div class="summary-item highlight"><span class="summary-label">총 금액</span><span class="summary-value">${totalAmount.toLocaleString()}원</span></div>`;
+    html += `<div class="summary-item deduction"><span class="summary-label">소득공제 (3.3%)</span><span class="summary-value">-${deductionAmount.toLocaleString()}원</span></div>`;
+    html += `<div class="summary-item final"><span class="summary-label">최종 정산 금액</span><span class="summary-value">${finalAmount.toLocaleString()}원</span></div>`;
+    html += '</div></div>';
+    
+    summaryContainer.innerHTML = html;
+}
+
+function saveManualSettlement() {
+    const startDate = document.getElementById('settlementStartDate').value;
+    const endDate = document.getElementById('settlementEndDate').value;
+    const lessonPrice = parseInt(localStorage.getItem(STORAGE_KEYS.LESSON_PRICE)) || 0;
+    
+    if (!startDate || !endDate) {
+        alert('시작 일자와 종료 일자를 모두 선택해주세요.');
+        return;
+    }
+    
+    if (lessonPrice === 0) {
+        alert('관리자 설정에서 1타임당 레슨비를 먼저 설정해주세요.');
+        return;
+    }
+    
+    // 총 레슨 횟수 계산
+    let totalTimes = 0;
+    Object.keys(calendarData).forEach(dateStr => {
+        const data = calendarData[dateStr];
+        totalTimes += (data.morning || 0) + (data.afternoon || 0);
+    });
+    
+    if (totalTimes === 0) {
+        alert('최소 1타임 이상의 레슨을 입력해주세요.');
+        return;
+    }
+    
+    // 총 금액 계산
+    const totalAmount = totalTimes * lessonPrice;
+    const deductionAmount = Math.floor(totalAmount * 0.033);
+    const finalAmount = totalAmount - deductionAmount;
+    
+    // 날짜 정보
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    const year = startDateObj.getFullYear();
+    const month = startDateObj.getMonth() + 1;
+    
+    // 저장
+    const salaryRecords = getSalaryRecords();
+    const recordId = Date.now();
+    
+    const newRecord = {
+        id: recordId,
+        year: year,
+        month: month,
+        startDate: startDate,
+        endDate: endDate,
+        totalAmount: finalAmount,
+        totalTimes: totalTimes,
+        calendarData: JSON.parse(JSON.stringify(calendarData)), // 데이터 복사
+        note: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    
+    salaryRecords.push(newRecord);
+    
+    // 날짜순으로 정렬 (최신순)
+    salaryRecords.sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        if (a.month !== b.month) return b.month - a.month;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+    
+    saveSalaryRecords(salaryRecords);
+    loadSalaryRecords();
+    
+    showNotification(`${year}년 ${month}월 정산 기록이 저장되었습니다.`);
+    
+    // 입력 초기화
+    calendarData = {};
+    document.getElementById('calendarContainer').innerHTML = '';
+    document.getElementById('settlementSummary').innerHTML = '';
+    document.getElementById('calendarSection').style.display = 'none';
+    document.getElementById('settlementStartDate').value = '';
+    document.getElementById('settlementEndDate').value = '';
+}
+
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
