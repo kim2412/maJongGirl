@@ -15,8 +15,192 @@ const PASSWORD = '01089707825';
 
 // 페이지 로드 시 데이터 불러오기
 document.addEventListener('DOMContentLoaded', function() {
+    checkInAppBrowser();
     checkLoginStatus();
 });
+
+// ==================== 인앱 브라우저 감지 ====================
+function checkInAppBrowser() {
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+    const isInApp = /KAKAOTALK|FB_IAB|FBAN|FBAV|Instagram|Line|LinkedInApp|Naver|Snapchat|Twitter|WhatsApp|wv|WebView/i.test(userAgent);
+    
+    // 카카오톡 인앱 브라우저인 경우
+    if (isInApp && /KAKAOTALK/i.test(userAgent)) {
+        showInAppBrowserWarning();
+    }
+}
+
+function showInAppBrowserWarning() {
+    const warningDiv = document.createElement('div');
+    warningDiv.id = 'inAppBrowserWarning';
+    warningDiv.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+        color: white;
+        padding: 20px;
+        text-align: center;
+        z-index: 100001;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        animation: slideDown 0.3s ease;
+    `;
+    
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isAndroid = /Android/.test(navigator.userAgent);
+    
+    let openButton = '';
+    if (isIOS) {
+        openButton = `
+            <button onclick="openInSafari()" style="
+                background: white;
+                color: #ff6b6b;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 1rem;
+                margin-top: 15px;
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            ">
+                🍎 사파리에서 열기
+            </button>
+        `;
+    } else if (isAndroid) {
+        openButton = `
+            <button onclick="openInChrome()" style="
+                background: white;
+                color: #ff6b6b;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 1rem;
+                margin-top: 15px;
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            ">
+                🌐 크롬에서 열기
+            </button>
+        `;
+    }
+    
+    warningDiv.innerHTML = `
+        <div style="max-width: 600px; margin: 0 auto;">
+            <h3 style="margin: 0 0 10px 0; font-size: 1.2rem;">⚠️ 카카오톡 브라우저에서 열렸습니다</h3>
+            <p style="margin: 0 0 15px 0; font-size: 0.95rem; line-height: 1.5;">
+                데이터가 제대로 저장되지 않을 수 있습니다.<br>
+                외부 브라우저(사파리/크롬)에서 열어주세요.
+            </p>
+            ${openButton}
+            <button onclick="closeInAppWarning()" style="
+                background: transparent;
+                color: white;
+                border: 2px solid white;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 1rem;
+                margin-top: 15px;
+                margin-left: 10px;
+                cursor: pointer;
+            ">
+                닫기
+            </button>
+        </div>
+    `;
+    
+    document.body.insertBefore(warningDiv, document.body.firstChild);
+    
+    // CSS 애니메이션 추가
+    if (!document.getElementById('inAppBrowserStyles')) {
+        const style = document.createElement('style');
+        style.id = 'inAppBrowserStyles';
+        style.textContent = `
+            @keyframes slideDown {
+                from {
+                    transform: translateY(-100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+function openInSafari() {
+    const currentUrl = window.location.href;
+    
+    // iOS에서 사파리로 열기 시도
+    // 방법 1: URL 복사 후 안내
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(currentUrl).then(() => {
+            alert('✅ URL이 복사되었습니다!\n\n사파리 앱을 열고 주소창에 붙여넣기(Cmd+V) 하세요.');
+            // 사파리 앱 열기 시도 (선택적)
+            try {
+                window.location.href = currentUrl;
+            } catch(e) {
+                // 무시
+            }
+        }).catch(() => {
+            // 클립보드 복사 실패 시 prompt 사용
+            prompt('📋 아래 URL을 복사하세요:\n\n사파리 앱을 열고 주소창에 붙여넣기 하세요:', currentUrl);
+        });
+    } else {
+        // 클립보드 API가 없는 경우
+        prompt('📋 아래 URL을 복사하세요:\n\n사파리 앱을 열고 주소창에 붙여넣기 하세요:', currentUrl);
+    }
+}
+
+function openInChrome() {
+    const currentUrl = window.location.href;
+    
+    // Android에서 Chrome으로 열기 시도
+    // Intent URI 사용 (Chrome이 설치되어 있으면 자동으로 열림)
+    try {
+        const urlWithoutProtocol = currentUrl.replace(/^https?:\/\//, '');
+        const intentUrl = `intent://${urlWithoutProtocol}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;end`;
+        
+        // 먼저 Intent URI 시도
+        window.location.href = intentUrl;
+        
+        // 2초 후에도 페이지가 그대로면 URL 복사 안내
+        setTimeout(() => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(currentUrl).then(() => {
+                    alert('✅ URL이 복사되었습니다!\n\n크롬 앱을 열고 주소창에 붙여넣기 하세요.');
+                });
+            } else {
+                prompt('📋 아래 URL을 복사하세요:\n\n크롬 앱을 열고 주소창에 붙여넣기 하세요:', currentUrl);
+            }
+        }, 2000);
+    } catch(e) {
+        // Intent URI 실패 시 URL 복사
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(currentUrl).then(() => {
+                alert('✅ URL이 복사되었습니다!\n\n크롬 앱을 열고 주소창에 붙여넣기 하세요.');
+            });
+        } else {
+            prompt('📋 아래 URL을 복사하세요:\n\n크롬 앱을 열고 주소창에 붙여넣기 하세요:', currentUrl);
+        }
+    }
+}
+
+function closeInAppWarning() {
+    const warning = document.getElementById('inAppBrowserWarning');
+    if (warning) {
+        warning.style.animation = 'slideDown 0.3s ease reverse';
+        setTimeout(() => {
+            warning.remove();
+        }, 300);
+    }
+}
 
 // ==================== 로그인 관리 ====================
 function checkLoginStatus() {
