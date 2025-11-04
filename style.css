@@ -159,6 +159,7 @@ body {
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px 40px;
+    box-sizing: border-box;
 }
 
 /* 페이지 헤더 */
@@ -241,7 +242,7 @@ body {
 }
 
 .help-icon {
-    font-size: 1rem;
+    font-size: 1.3rem;
     line-height: 1;
 }
 
@@ -289,6 +290,9 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
+    width: 100%;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 @media (max-width: 768px) {
@@ -319,7 +323,7 @@ body {
     }
     
     .help-icon {
-        font-size: 0.9rem;
+        font-size: 1.1rem;
     }
     
     .help-text-inline {
@@ -351,6 +355,8 @@ body {
     
     .card {
         padding: 20px;
+        margin-left: 0;
+        margin-right: 0;
     }
     
     .card h2 {
@@ -362,6 +368,16 @@ body {
     .form-group textarea {
         font-size: 16px; /* iOS 줌 방지 */
         min-height: 48px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        width: 100%;
+        max-width: 100%;
     }
     
     .btn {
@@ -490,6 +506,10 @@ body {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
     border: 1px solid #e9ecef;
     transition: all 0.3s ease;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 .card:hover {
@@ -509,6 +529,8 @@ body {
 
 .form-group {
     margin-bottom: 20px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .card-header {
@@ -598,9 +620,32 @@ body {
     transition: border-color 0.3s ease;
     touch-action: manipulation;
     min-height: 44px;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 .form-group input:focus {
+    outline: none;
+    border-color: #495057;
+    box-shadow: 0 0 0 3px rgba(73, 80, 87, 0.1);
+}
+
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+    touch-action: manipulation;
+    min-height: 44px;
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+.form-group select:focus,
+.form-group textarea:focus {
     outline: none;
     border-color: #495057;
     box-shadow: 0 0 0 3px rgba(73, 80, 87, 0.1);
@@ -610,6 +655,9 @@ body {
     display: flex;
     gap: 10px;
     align-items: center;
+    width: 100%;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 .input-with-btn input {
@@ -620,6 +668,9 @@ body {
     font-weight: 600;
     border: 2px solid #e0e0e0;
     border-radius: 8px;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
 }
 
 .input-with-btn input:focus {
@@ -651,12 +702,18 @@ body {
 @media (max-width: 768px) {
     .input-with-btn {
         gap: 6px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
     }
     
     .input-with-btn input {
         padding: 18px 20px;
         font-size: 1.3rem;
         min-height: 65px;
+        box-sizing: border-box;
+        max-width: 100%;
+        min-width: 0;
     }
     
     .input-with-btn .btn {
@@ -664,6 +721,8 @@ body {
         height: 65px;
         font-size: 0.85rem;
         max-width: 100px;
+        flex-shrink: 1;
+        box-sizing: border-box;
     }
     
     .input-with-btn .btn .btn-icon {
@@ -674,12 +733,18 @@ body {
 @media (max-width: 480px) {
     .input-with-btn {
         gap: 5px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
     }
     
     .input-with-btn input {
         padding: 16px 18px;
         font-size: 1.2rem;
         min-height: 60px;
+        box-sizing: border-box;
+        max-width: 100%;
+        min-width: 0;
     }
     
     .input-with-btn .btn {
@@ -687,10 +752,20 @@ body {
         height: 60px;
         font-size: 0.8rem;
         max-width: 90px;
+        flex-shrink: 1;
+        box-sizing: border-box;
     }
     
     .input-with-btn .btn .btn-icon {
         font-size: 0.8em;
+    }
+    
+    .container {
+        padding: 0 15px 40px;
+    }
+    
+    .card {
+        padding: 15px;
     }
 }
 
@@ -2326,14 +2401,23 @@ textarea:focus {
     
     /* 모바일 (768px 이하) */
     @media (max-width: 768px) {
+        .container {
+            padding: 0 15px 40px;
+        }
+        
         .card {
             padding: 15px 10px;
             margin-bottom: 20px;
+            margin-left: 0;
+            margin-right: 0;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         
         .calendar-table-wrapper {
-            margin-left: -15px;
-            margin-right: -15px;
+            margin-left: -10px;
+            margin-right: -10px;
             max-height: 70vh;
         }
         
