@@ -7,6 +7,23 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- 로그인 화면 -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-card">
+                <h1>🎾 테니스 레슨 정산 시스템</h1>
+                <p class="login-subtitle">비밀번호를 입력해주세요</p>
+                <div class="login-form">
+                    <input type="password" id="passwordInput" placeholder="비밀번호 입력" onkeypress="handlePasswordEnter(event)">
+                    <p id="passwordError" class="password-error"></p>
+                    <button class="btn btn-primary login-btn" onclick="checkPassword()">로그인</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 메인 콘텐츠 (로그인 후 표시) -->
+    <div id="mainContent" class="main-content" style="display: none;">
     <div class="hero-section">
         <div class="hero-content">
             <div class="hero-text">
@@ -20,45 +37,381 @@
     </div>
     
     <div class="container">
-
-        <!-- 레슨비 설정 섹션 -->
-        <section class="card">
-            <h2>💰 레슨비 설정</h2>
-            <div class="form-group">
-                <label for="lessonPrice">회당 레슨비 (원)</label>
-                <input type="number" id="lessonPrice" placeholder="예: 20000" min="0">
+        <!-- 상단 헤더 -->
+        <div class="page-header">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('members')">👥 회원관리</button>
+                <button class="tab-btn" onclick="switchTab('salary')">💰 월급정산</button>
+                <button class="tab-btn" onclick="switchTab('lessons')">🎾 레슨관리</button>
             </div>
-            <button class="btn btn-primary" onclick="saveLessonPrice()">저장</button>
-            <div id="priceDisplay" class="info-display"></div>
+            <button class="help-btn" onclick="showHelp()" title="도움말">❓</button>
+        </div>
+
+        <!-- 도움말 팝업 -->
+        <div id="helpPopup" class="help-popup" onclick="closeHelpOnBackdrop(event)">
+            <div class="help-popup-content">
+                <div class="help-popup-header">
+                    <h2>📖 사용 설명명</h2>
+                    <button class="help-close-btn" onclick="closeHelp()">×</button>
+                </div>
+                <div class="help-popup-body">
+                    <div class="help-section">
+                        <h3>👥 회원관리</h3>
+                        <p>마종걸!, 여기서 회원 등록하고 관리해ㅋㅋㅋ 회원 이름, 시작일/종료일, 주 몇회 레슨, 1회당 몇타임 받는지 입력하면 돼.</p>
+                        <p>재등록 버튼을 누르면 이전 정보를 불러와서 편하게 재등록할 수 있어. 쉽게 사용할 수 있을 거야!</p>
+                        <p>검색 필터로 현재 레슨 진행중인 회원만 보거나, 재등록 안한 회원만 확인할 수 있어.</p>
+                    </div>
+                    <div class="help-section">
+                        <h3>💰 월급정산</h3>
+                        <p>레슨비를 먼저 설정하고, 정산할 월을 선택하면 자동으로 계산해줘.</p>
+                        <p>정산 시작일/종료일을 직접 설정할 수도 있고, 월만 선택하면 자동으로 그 달의 첫날~마지막날로 설정돼.</p>
+                        <p>특이사항은 정산 월에 특별한 내용 기록용! 정산 완료 저장을 누르면 기록이 저장되고, 수정도 가능하단다!</p>
+                    </div>
+                    <div class="help-section">
+                        <h3>🎾 레슨관리</h3>
+                        <p>쿠폰 관리와 레슨 기록을 여기서 확인할 수 있어. 쿠폰 사용한 날짜와 금액을 기록해두면 정산할 때 자동으로 차감돼.</p>
+                        <p>레슨 취소나 보강이 생기면 여기서 관리하구. 취소한 레슨은 차감되고, 보강한 레슨은 추가로 계산돼. (취소했을때 차감인지 아니면 어떤 기능 넣어야 하는지 모르겠옹ㅠㅠ)</p>
+                        <p>회원별 레슨 기록도 확인할 수 있어. 몇월에 몇번 받았는지 한눈에 볼 수 있게 만들었옹</p>
+                    </div>
+                    <div class="help-section">
+                        <h3>💾 데이터 관리</h3>
+                        <p>중요한 데이터는 꼭 내보내기 해둬! 핸드폰에 파일로 저장되구 용량은 적어 10메가 수준이양.</p>
+                        <p>가져오기로 백업한 데이터를 복원할 수 있어. 실수로 지워도 괜찮아!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 회원관리 탭 -->
+        <div id="members-tab" class="tab-content active">
+            <!-- 회원 등록/수정 폼 -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>👤 회원 등록/재등록</h2>
+                    <p class="card-description">회원 정보를 입력하고 등록하세요. 재등록 시 이전 정보가 자동으로 불러와집니다.</p>
+                </div>
+                <div class="form-group">
+                    <label for="memberName">
+                        <span class="label-text">회원 이름</span>
+                        <span class="required-mark">*</span>
+                    </label>
+                    <input type="text" id="memberName" placeholder="예: 홍길동" onblur="validateMemberName()">
+                    <small class="help-text">등록할 회원의 이름을 입력하세요</small>
+                    <div class="error-message" id="memberNameError"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="startDate">
+                            <span class="label-text">시작 일자</span>
+                            <span class="required-mark">*</span>
+                        </label>
+                        <input type="date" id="startDate" onchange="validateDates()">
+                        <small class="help-text">레슨 시작 날짜</small>
+                        <div class="error-message" id="startDateError"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="endDate">
+                            <span class="label-text">종료 일자</span>
+                            <span class="required-mark">*</span>
+                        </label>
+                        <input type="date" id="endDate" onchange="validateDates()">
+                        <small class="help-text">레슨 종료 날짜</small>
+                        <div class="error-message" id="endDateError"></div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="lessonsPerWeek">
+                            <span class="label-text">주 몇회 레슨</span>
+                            <span class="required-mark">*</span>
+                        </label>
+                        <input type="number" id="lessonsPerWeek" placeholder="예: 1" min="1" max="7" onchange="validateNumber(this, 1, 7)">
+                        <small class="help-text">일주일에 몇 번 레슨을 받는지 입력 (1~7회)</small>
+                        <div class="error-message" id="lessonsPerWeekError"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="timesPerLesson">
+                            <span class="label-text">1회당 몇타임</span>
+                            <span class="required-mark">*</span>
+                        </label>
+                        <input type="number" id="timesPerLesson" placeholder="예: 2" min="1" onchange="validateNumber(this, 1, null)">
+                        <small class="help-text">한 번 레슨에 몇 타임을 받는지 입력</small>
+                        <div class="error-message" id="timesPerLessonError"></div>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary btn-large" onclick="addOrRenewMember()">
+                        <span class="btn-icon">✅</span>
+                        회원 등록
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearMemberForm()">
+                        <span class="btn-icon">🔄</span>
+                        초기화
+                    </button>
+                </div>
+            </section>
+
+            <!-- 회원 조회 -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>🔍 회원 조회</h2>
+                    <p class="card-description">회원 이름을 입력하면 해당 회원의 레슨 기록을 확인할 수 있습니다.</p>
+                </div>
+                <div class="form-group">
+                    <label for="searchMemberName">회원 이름 검색</label>
+                    <div class="search-input-wrapper">
+                        <input type="text" id="searchMemberName" placeholder="회원 이름을 입력하세요" onkeyup="searchMember()">
+                        <span class="search-icon">🔍</span>
+                    </div>
+                    <small class="help-text">검색할 회원 이름을 입력하세요 (부분 검색 가능)</small>
+                </div>
+                <div id="memberSearchResults" class="member-search-results"></div>
+            </section>
+
+            <!-- 회원 목록 -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>📋 회원 목록</h2>
+                    <p class="card-description">등록된 회원 목록을 확인하고 관리하세요.</p>
+                </div>
+                <div class="filter-section">
+                    <label for="memberFilter" class="filter-label">필터 선택</label>
+                    <select id="memberFilter" onchange="applyMemberFilter()" class="filter-select">
+                        <option value="all">📌 전체 회원</option>
+                        <option value="active">✅ 현재 레슨 진행중</option>
+                        <option value="inactive">⏸️ 레슨 종료 (재등록 필요)</option>
+                    </select>
+                </div>
+                <div id="membersList" class="members-list"></div>
+            </section>
+        </div>
+
+        <!-- 월급정산 탭 -->
+        <div id="salary-tab" class="tab-content">
+            <!-- 관리자 설정 -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>⚙️ 관리자 설정</h2>
+                    <p class="card-description">레슨비와 쿠폰 기본 가격을 설정하세요. 정산 계산에 사용됩니다.</p>
+                </div>
+                <div class="form-group">
+                    <label for="lessonPrice">
+                        <span class="label-text">1타임당 레슨비</span>
+                        <span class="currency">(원)</span>
+                    </label>
+                    <div class="input-with-btn">
+                        <input type="number" id="lessonPrice" placeholder="예: 20000" min="0" onchange="validatePrice(this)">
+                        <button class="btn btn-primary" onclick="saveLessonPrice()">
+                            <span class="btn-icon">💾</span>
+                            저장
+                        </button>
+                    </div>
+                    <small class="help-text">1타임당 레슨비를 입력하세요 (정산 시 사용)</small>
+                    <div id="priceDisplay" class="info-display success-info"></div>
+                </div>
+                <div class="form-group">
+                    <label for="couponDefaultPrice">
+                        <span class="label-text">쿠폰 기본 가격</span>
+                        <span class="currency">(원)</span>
+                    </label>
+                    <div class="input-with-btn">
+                        <input type="number" id="couponDefaultPrice" placeholder="예: 15000" min="0" onchange="validatePrice(this)">
+                        <button class="btn btn-primary" onclick="saveCouponDefaultPrice()">
+                            <span class="btn-icon">💾</span>
+                            저장
+                        </button>
+                    </div>
+                    <small class="help-text">당일취소(쿠폰) 시 사용할 기본 가격을 입력하세요</small>
+                    <div id="couponPriceDisplay" class="info-display success-info"></div>
+                </div>
+            </section>
+
+            <!-- 정산 결과 -->
+            <section class="card summary-card">
+                <div class="card-header">
+                    <h2>📊 월별 정산 결과</h2>
+                    <p class="card-description">정산할 월을 선택하고 계산하면 자동으로 금액이 계산됩니다.</p>
+                </div>
+                <div class="form-group">
+                    <label for="settlementMonth">
+                        <span class="label-text">정산할 월 선택</span>
+                        <span class="required-mark">*</span>
+                    </label>
+                    <input type="month" id="settlementMonth" onchange="updateSettlementDates()">
+                    <small class="help-text">정산할 년월을 선택하세요</small>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="settlementStartDate">
+                            <span class="label-text">정산 시작 일자</span>
+                        </label>
+                        <input type="date" id="settlementStartDate">
+                        <small class="help-text">월 선택 시 자동 설정됩니다</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="settlementEndDate">
+                            <span class="label-text">정산 종료 일자</span>
+                        </label>
+                        <input type="date" id="settlementEndDate">
+                        <small class="help-text">월 선택 시 자동 설정됩니다</small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="settlementNote">특이사항</label>
+                    <textarea id="settlementNote" rows="3" placeholder="특이사항을 입력하세요 (예: 보너스 지급, 특별 이벤트 등)"></textarea>
+                    <small class="help-text">정산 시 특별히 기록할 내용이 있으면 입력하세요</small>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-success btn-large" onclick="calculateMonthlySalary()">
+                        <span class="btn-icon">💰</span>
+                        정산 계산
+                    </button>
+                    <button class="btn btn-primary btn-large" onclick="saveSettlement()" id="saveSettlementBtn" style="display: none;">
+                        <span class="btn-icon">💾</span>
+                        정산 완료 저장
+                    </button>
+                </div>
+                <div id="summaryResults" class="summary-results"></div>
         </section>
 
-        <!-- 회원 관리 섹션 -->
+            <!-- 정산 기록 목록 -->
+            <section class="card">
+                <h2>📋 정산 기록 목록</h2>
+                <div id="salaryRecordsList" class="salary-records-list"></div>
+            </section>
+        </div>
+
+        <!-- 레슨관리 탭 -->
+        <div id="lessons-tab" class="tab-content">
+            <!-- 당일취소 관리 -->
         <section class="card">
-            <h2>👥 회원 관리</h2>
+                <div class="card-header">
+                    <h2>🚨 당일취소 관리</h2>
+                    <p class="card-description">오늘 예정된 레슨의 당일취소를 관리하세요. 차감, 보강, 쿠폰 중 선택할 수 있습니다.</p>
+                </div>
+                <div class="form-group">
+                    <label for="sameDayCancelMember">
+                        <span class="label-text">회원 선택</span>
+                        <span class="required-mark">*</span>
+                    </label>
+                    <select id="sameDayCancelMember" onchange="updateSameDayCancelDate()">
+                        <option value="">회원을 선택하세요</option>
+                    </select>
+                    <small class="help-text">당일취소할 회원을 선택하세요</small>
+                </div>
+                <div class="form-group">
+                    <label for="sameDayCancelDate">취소 일자</label>
+                    <input type="date" id="sameDayCancelDate" readonly>
+                    <small class="help-text">오늘 날짜로 자동 설정됩니다</small>
+                </div>
             <div class="form-group">
-                <label for="memberName">회원 이름</label>
-                <input type="text" id="memberName" placeholder="회원 이름을 입력하세요">
+                    <label for="sameDayCancelType">
+                        <span class="label-text">취소 유형</span>
+                        <span class="required-mark">*</span>
+                    </label>
+                    <select id="sameDayCancelType" onchange="toggleSameDayCancelOptions()">
+                        <option value="deduct">❌ 당일취소(차감) - 레슨 타임 차감</option>
+                        <option value="makeup">✅ 당일취소(보강) - 보강일 지정</option>
+                        <option value="coupon">🎫 당일취소(쿠폰) - 쿠폰으로 처리</option>
+                    </select>
+                    <small class="help-text">취소 처리 방식을 선택하세요</small>
+                </div>
+                
+                <!-- 보강 옵션 -->
+                <div id="makeupOptions" style="display: none;" class="makeup-options-wrapper">
+                    <div class="info-box">
+                        <p>📝 보강 일자와 시간을 선택해주세요</p>
             </div>
             <div class="form-group">
-                <label for="startDate">시작 일자</label>
-                <input type="date" id="startDate">
+                        <label for="makeupDate">
+                            <span class="label-text">보강 일자</span>
+                            <span class="required-mark">*</span>
+                        </label>
+                        <input type="date" id="makeupDate" min="">
+                        <small class="help-text">보강할 날짜를 선택하세요 (오늘 이후)</small>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="makeupHour">
+                                <span class="label-text">시간</span>
+                                <span class="required-mark">*</span>
+                            </label>
+                            <select id="makeupHour">
+                                <option value="">시간 선택</option>
+                            </select>
+                            <small class="help-text">보강 시간 선택</small>
             </div>
             <div class="form-group">
-                <label for="endDate">종료 일자</label>
-                <input type="date" id="endDate">
+                            <label for="makeupMinute">
+                                <span class="label-text">분</span>
+                                <span class="required-mark">*</span>
+                            </label>
+                            <select id="makeupMinute">
+                                <option value="00">00분</option>
+                                <option value="20">20분</option>
+                                <option value="40">40분</option>
+                            </select>
+                            <small class="help-text">20분 단위로 선택</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="sameDayCancelNote">메모</label>
+                    <input type="text" id="sameDayCancelNote" placeholder="취소 사유를 입력하세요 (선택사항)">
+                    <small class="help-text">취소 사유나 특이사항을 기록하세요</small>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary btn-large" onclick="addSameDayCancel()">
+                        <span class="btn-icon">✅</span>
+                        당일취소 등록
+                    </button>
             </div>
-            <button class="btn btn-primary" onclick="addMember()">회원 추가</button>
-            
-            <div id="membersList" class="members-list"></div>
+                <div id="sameDayCancelsList" class="same-day-cancel-list"></div>
+            </section>
+
+            <!-- 레슨 취소/보강 관리 -->
+            <section class="card">
+                <h2>📅 레슨 취소/보강 관리</h2>
+                <div class="form-group">
+                    <label for="cancelLessonMember">회원 선택</label>
+                    <select id="cancelLessonMember">
+                        <option value="">회원을 선택하세요</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cancelLessonDate">일자</label>
+                        <input type="date" id="cancelLessonDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="cancelLessonType">유형</label>
+                        <select id="cancelLessonType">
+                            <option value="cancel">취소</option>
+                            <option value="makeup">보강</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="cancelLessonCount">타임 수</label>
+                    <input type="number" id="cancelLessonCount" placeholder="예: 1" min="1" value="1">
+                </div>
+                <div class="form-group">
+                    <label for="cancelLessonNote">메모</label>
+                    <input type="text" id="cancelLessonNote" placeholder="취소/보강 사유 (선택사항)">
+                </div>
+                <button class="btn btn-primary" onclick="addCancelMakeupLesson()">추가</button>
+                <div id="cancelMakeupLessonsList" class="cancel-makeup-list"></div>
         </section>
 
-        <!-- 쿠폰 관리 섹션 -->
+            <!-- 쿠폰 관리 -->
         <section class="card">
             <h2>🎫 쿠폰 관리</h2>
             <div class="form-group">
                 <label for="couponDate">쿠폰 사용 일자</label>
                 <input type="date" id="couponDate">
             </div>
+                <div class="form-row">
             <div class="form-group">
                 <label for="couponCount">쿠폰 개수 (회)</label>
                 <input type="number" id="couponCount" placeholder="예: 2" min="0">
@@ -66,18 +419,24 @@
             <div class="form-group">
                 <label for="couponPrice">쿠폰 금액 (원)</label>
                 <input type="number" id="couponPrice" placeholder="예: 15000" min="0">
+                    </div>
             </div>
             <button class="btn btn-primary" onclick="addCoupon()">쿠폰 추가</button>
-            
             <div id="couponsList" class="coupons-list"></div>
         </section>
 
-        <!-- 정산 결과 섹션 -->
-        <section class="card summary-card">
-            <h2>📊 정산 결과</h2>
-            <div id="summaryResults" class="summary-results"></div>
-            <button class="btn btn-success" onclick="calculateTotal()">정산 계산</button>
+            <!-- 레슨 기록 조회 -->
+            <section class="card">
+                <h2>📋 레슨 기록 조회</h2>
+                <div class="form-group">
+                    <label for="lessonSearchMember">회원 선택</label>
+                    <select id="lessonSearchMember" onchange="loadMemberLessonHistory()">
+                        <option value="">전체 회원</option>
+                    </select>
+                </div>
+                <div id="lessonHistory" class="lesson-history"></div>
         </section>
+        </div>
 
         <!-- 데이터 관리 -->
         <section class="card">
@@ -89,6 +448,7 @@
             </div>
             <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleFileImport(event)">
         </section>
+    </div>
     </div>
 
     <script src="app.js"></script>
